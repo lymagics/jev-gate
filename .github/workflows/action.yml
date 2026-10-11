@@ -22,7 +22,7 @@ jobs:
         uses: ./
         continue-on-error: true
         with:
-          config: examples/jev-gates.yml
+          config: .github/jev-gates.yml
           mode: full
       - name: Fail unless the action failed closed without an API key
         if: steps.gate.outcome != 'failure'
