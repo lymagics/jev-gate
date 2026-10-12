@@ -26,7 +26,7 @@ with a probability, and code compares it with a threshold.
   with:
     fetch-depth: 0
     ref: ${{ github.event.pull_request.head.sha }}
-- uses: your-org/jev-gate@v1
+- uses: lymagics/jev-gate@vX.Y.Z
   with:
     config: .github/jev-gates.yml
     mode: diff
@@ -34,6 +34,10 @@ with a probability, and code compares it with a threshold.
   env:
     TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
 ```
+
+Replace `vX.Y.Z` with a [release](https://github.com/lymagics/jev-gate/releases)
+tag; the Action then installs the same version of `jev-gate` from PyPI. Any
+other ref, such as a branch or a commit, builds the package from source.
 
 `fetch-depth: 0` is required in `diff` mode: the base commit must be in the
 history. Checking out the head commit keeps the merge commit of a pull
@@ -493,7 +497,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
-      - uses: your-org/jev-gate@v1
+      - uses: lymagics/jev-gate@vX.Y.Z
         with:
           config: .github/jev-gates.yml
           mode: diff
@@ -523,7 +527,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
-      - uses: your-org/jev-gate@v1
+      - uses: lymagics/jev-gate@vX.Y.Z
         with:
           config: .github/jev-gates.yml
           mode: full
