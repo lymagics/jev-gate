@@ -3,12 +3,12 @@ import sys
 
 from jev_gate.anywhere import Anywhere
 from jev_gate.application import Application
-from jev_gate.github_log import GithubLog
+from jev_gate.chosen_log import ChosenLog
 from jev_gate.typesafe_connection import TypeSafeConnection
 
 
 def main() -> int:
-    log = GithubLog(sys.stdout)
+    log = ChosenLog(sys.argv[1:], sys.stdout)
     try:
         code = Application(
             sys.argv[1:],

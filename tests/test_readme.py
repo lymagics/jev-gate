@@ -22,7 +22,7 @@ def examples() -> list[str]:
     return [
         block
         for block in re.findall(r"```yaml\n(.*?)```", text, re.DOTALL)
-        if "uses:" not in block
+        if "uses:" not in block and "script:" not in block
     ]
 
 

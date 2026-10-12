@@ -50,6 +50,7 @@ class Application:
         parser.add_argument("--base", default="")
         parser.add_argument("--root", default=".")
         parser.add_argument("--jobs", type=int, default=8)
+        parser.add_argument("--log", choices=["github", "plain"], default="github")
         try:
             options = parser.parse_args(self.args)
         except (argparse.ArgumentError, SystemExit) as e:
@@ -88,8 +89,9 @@ class Application:
                 base = repository.output("merge-base", options.base, "HEAD").strip()
             except Exception as e:
                 raise Exception(
-                    f"The base '{options.base}' is not in the history; "
-                    "check out with 'fetch-depth: 0'"
+                    f"The base '{options.base}' is not in the history; fetch the "
+                    "full history ('fetch-depth: 0' on GitHub, 'GIT_DEPTH: 0' on "
+                    "GitLab)"
                 ) from e
             result = DiffSources(repository, base, tree, packs)
         return result

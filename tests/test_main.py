@@ -3,7 +3,7 @@ import subprocess
 import sys
 
 import pytest
-from hamcrest import assert_that, contains_string, equal_to
+from hamcrest import all_of, assert_that, contains_string, equal_to, is_not
 
 from scratch import Scratch
 
@@ -64,4 +64,26 @@ def test_explains_the_failure_as_an_annotation():
             ).stdout,
             contains_string("::error title=jev-gate::"),
             "A failure must print one error annotation with its reasons",
+        )
+
+
+def test_explains_the_failure_as_a_plain_line():
+    with Scratch("main-plain") as scratch:
+        scratch.write({"p.yml": "model: jev-newest\ngates: []\n"}).commit("one")
+        assert_that(
+            run(
+                [
+                    "--log",
+                    "plain",
+                    "--config",
+                    os.path.join(scratch.path, "p.yml"),
+                    "--mode",
+                    "full",
+                    "--root",
+                    scratch.path,
+                ],
+                "key-π",
+            ).stdout,
+            all_of(contains_string("error: jev-gate: "), is_not(contains_string("::"))),
+            "A plain failure must print one readable line without workflow commands",
         )

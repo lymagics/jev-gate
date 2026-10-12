@@ -9,6 +9,7 @@ with a probability, and code compares it with a threshold.
 
 - [Usage](#usage)
 - [Command line](#command-line)
+- [GitLab CI](#gitlab-ci)
 - [Gates file](#gates-file)
 - [Custom scopes](#custom-scopes)
 - [Examples](#examples)
@@ -60,7 +61,39 @@ jev-gate --config .github/jev-gates.yml --mode diff --base origin/main
 ```
 
 It takes the same options as the Action, plus `--root`, the repository
-directory, and returns the same exit codes.
+directory, and `--log`, the output format: `github` (the default) prints
+workflow commands that GitHub shows as annotations, and `plain` prints one
+`file:line: error: gate: text` line per finding. It returns the same exit
+codes.
+
+## GitLab CI
+
+Add a job to `.gitlab-ci.yml` and set `TYPESAFE_API_KEY` as a masked CI/CD
+variable in the project settings:
+
+```yaml
+jev-gate:
+  image: python:3.15
+  variables:
+    GIT_DEPTH: 0
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - pip install jev-gate==X.Y.Z
+    - jev-gate --log plain --config .gitlab/jev-gates.yml --mode diff --base "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
+```
+
+Replace `X.Y.Z` with a [release](https://github.com/lymagics/jev-gate/releases)
+version.
+
+`GIT_DEPTH: 0` is required in `diff` mode. GitLab clones only 20 commits by
+default, which leaves the base out of the history and makes `merge-base` fail.
+
+In a merged results pipeline, `HEAD` is a synthetic merge commit that would
+land in the `commit` scope. Run the job in a plain merge request pipeline, or
+check out `$CI_MERGE_REQUEST_SOURCE_BRANCH_SHA` before calling `jev-gate`.
+
+The exit codes are the same: 0, 1 or 2.
 
 ## Gates file
 

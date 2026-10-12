@@ -1,12 +1,13 @@
 PYTHON ?= .venv/Scripts/python
 
 .DEFAULT_GOAL := help
-.PHONY: help unit e2e black flake8 ruff
+.PHONY: help grammars unit e2e black flake8 ruff
 
 help:
 	@echo "Usage: make <target> [PYTHON=path/to/python]"
 	@echo ""
 	@echo "Tests:"
+	@echo "  grammars Download the tree-sitter grammars the packs use, so tests stay offline"
 	@echo "  unit     Run the fast tests and fail if coverage drops below 90%"
 	@echo "  e2e      Run the deep tests that start the tool as a real process"
 	@echo ""
@@ -17,10 +18,13 @@ help:
 	@echo ""
 	@echo "PYTHON defaults to $(PYTHON)"
 
-unit:
+grammars:
+	$(PYTHON) -c "import glob, yaml, tree_sitter_language_pack as t; t.download(sorted({n for f in glob.glob('jev_gate/packs/*.yml') for n in yaml.safe_load(open(f))['grammars'].values()}))"
+
+unit: grammars
 	$(PYTHON) -m pytest -m "not deep and not online" --cov --cov-report=term-missing --cov-fail-under=90
 
-e2e:
+e2e: grammars
 	$(PYTHON) -m pytest -m deep
 
 black:

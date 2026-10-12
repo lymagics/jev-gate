@@ -160,6 +160,45 @@ def test_refuses_unknown_arguments():
     )
 
 
+def test_accepts_a_log_format():
+    with Scratch("app-log") as scratch:
+        scratch.write({"g.yml": GATES, "c.py": "class Ledger:\n    pass\n"}).commit(
+            "only"
+        )
+        assert_that(
+            Application(
+                [
+                    "--config",
+                    os.path.join(scratch.path, "g.yml"),
+                    "--mode",
+                    "full",
+                    "--log",
+                    "plain",
+                    "--root",
+                    scratch.path,
+                ],
+                FakeConnection(FakeModel({"vague-type-name": 0.07})),
+                FakeLog(),
+            ).code(),
+            equal_to(0),
+            "The log format must be an understood argument",
+        )
+
+
+def test_refuses_an_unknown_log_format():
+    assert_that(
+        calling(
+            Application(
+                ["--mode", "full", "--log", "json"],
+                FakeConnection(FakeModel({})),
+                FakeLog(),
+            ).code
+        ),
+        raises(Exception, "not understood"),
+        "An unknown log format must fail",
+    )
+
+
 def test_refuses_too_few_jobs():
     assert_that(
         calling(
@@ -206,6 +245,6 @@ def test_refuses_a_base_outside_history():
                     FakeLog(),
                 ).code
             ),
-            raises(Exception, "fetch-depth"),
-            "A base missing from history must fail with a hint",
+            raises(Exception, "GIT_DEPTH: 0"),
+            "A base missing from history must fail with a hint for GitHub and GitLab",
         )
