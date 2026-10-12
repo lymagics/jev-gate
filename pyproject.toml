@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=69"]
+requires = ["setuptools>=69", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "jev-gate"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Fails a pipeline when code breaks a quality rule that only a reader could check."
 readme = "README.md"
 license = "MIT"
@@ -35,6 +35,10 @@ jev-gate = "jev_gate.__main__:main"
 
 [tool.setuptools.packages.find]
 include = ["jev_gate*"]
+
+[tool.setuptools_scm]
+# GitHub hands action.yml a tarball without .git, so builds there need a fallback.
+fallback_version = "0.0.0"
 
 [tool.setuptools.package-data]
 jev_gate = ["packs/*.yml", "scopes.yml"]

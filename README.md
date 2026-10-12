@@ -8,6 +8,7 @@ with a probability, and code compares it with a threshold.
 ## Contents
 
 - [Usage](#usage)
+- [Command line](#command-line)
 - [Gates file](#gates-file)
 - [Custom scopes](#custom-scopes)
 - [Examples](#examples)
@@ -43,6 +44,19 @@ request out of the `commit` scope.
 | 0 | No gate fired |
 | 1 | At least one gate fired |
 | 2 | The tool could not finish |
+
+## Command line
+
+Outside GitHub Actions, install the package from PyPI and call it directly:
+
+```sh
+pip install jev-gate
+export TYPESAFE_API_KEY=...
+jev-gate --config .github/jev-gates.yml --mode diff --base origin/main
+```
+
+It takes the same options as the Action, plus `--root`, the repository
+directory, and returns the same exit codes.
 
 ## Gates file
 
