@@ -1,153 +1,164 @@
 # Jev Gate
 
-A GitHub Action that fails a pipeline when code breaks a quality rule that
-only a reader could check. Rules are yes/no questions in a YAML file; code
-picks what each question applies to, [Jev](https://docs.typesafe.ai) answers
-with a probability, and code compares it with a threshold.
+Linters catch what a parser can see: a missing semicolon, an unused import,
+a line that is too long. They can't tell you that `InvoiceBuilder` is named
+after what it does rather than what it is, that a test called
+`test_rejects_empty_cart` actually checks the total, or that an `except`
+block quietly swallows an error. Those rules need a reader.
+
+Jev Gate is that reader in your CI. You write each rule as a yes/no
+question in a YAML file. Jev Gate finds the code the question is about,
+asks [Jev](https://docs.typesafe.ai) for the probability that the answer is
+"yes", and fails the pipeline when the probability is above your threshold.
+
+It runs as a GitHub Action, in GitLab CI, or as a plain command.
 
 ## Contents
 
-- [Usage](#usage)
-- [Command line](#command-line)
-- [GitLab CI](#gitlab-ci)
-- [Gates file](#gates-file)
-- [Custom scopes](#custom-scopes)
-- [Examples](#examples)
-  - [Built-in scopes](#built-in-scopes)
-  - [Options](#options)
-  - [A complete gates file](#a-complete-gates-file)
-  - [Workflows](#workflows)
+- [How it works](#how-it-works)
+- [Quick start](#quick-start)
+- [Writing a gate](#writing-a-gate)
+- [Recipes](#recipes)
+- [Options](#options)
+- [Running outside GitHub](#running-outside-github)
+- [Reference](#reference)
 - [Development](#development)
 - [How to report issues](#how-to-report-issues)
 
-## Usage
+## How it works
+
+Take one rule: *a class must be named after what it is, not what it does*.
 
 ```yaml
-- uses: actions/checkout@v7
-  with:
-    fetch-depth: 0
-    ref: ${{ github.event.pull_request.head.sha }}
-- uses: lymagics/jev-gate@vX.Y.Z
-  with:
-    config: .github/jev-gates.yml
-    mode: diff
-    base: ${{ github.event.pull_request.base.sha }}
-  env:
-    TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+model: jev-1.13.0
+gates:
+  - id: class-named-after-a-doer
+    scope: type
+    state: [name]
+    ask: Does the class name `name` describe what its objects do?
+    fail_above: 0.85
+```
+
+When a pull request adds `class InvoiceBuilder` and `class Invoice`:
+
+1. **Pick.** The `type` scope finds every class the pull request touches:
+   `InvoiceBuilder` and `Invoice`.
+2. **Ask.** For each one, Jev gets the question with `name` filled in and
+   answers with a probability: 0.93 for `InvoiceBuilder`, 0.04 for
+   `Invoice`.
+3. **Compare.** 0.93 is above 0.85, so the gate fires on `InvoiceBuilder`
+   and the pipeline fails. `Invoice` passes.
+
+On GitHub the finding shows up as an annotation on the line of the class:
+
+```text
+src/billing/invoice_builder.py:12: error: class-named-after-a-doer: class-named-after-a-doer fired on InvoiceBuilder at src/billing/invoice_builder.py:12 with probability 0.934
+jev-gate: 1 gate(s) in diff mode gave 2 verdict(s), 1 violation(s), exit code 1
+```
+
+Code decides *what* gets judged and *whether* the pipeline fails; Jev only
+answers the question. The same file always picks the same candidates, and
+you tune strictness with one number.
+
+Jev Gate reads Python, Java, JavaScript, TypeScript, C#, C++, Ruby and Rust.
+
+## Quick start
+
+**1. Add a gates file** at `.github/jev-gates.yml`. Start with one or two
+gates; [A complete gates file](#a-complete-gates-file) has more.
+
+```yaml
+model: jev-1.13.0
+gates:
+  - id: swallowed-exception
+    scope: catch
+    state: [handler]
+    ask: Does `handler` drop the error without logging, rethrowing or returning it?
+    fail_above: 0.9
+```
+
+**2. Add your Typesafe API key** as a repository secret named
+`TYPESAFE_API_KEY`.
+
+**3. Add a workflow** at `.github/workflows/jev-gate.yml`:
+
+```yaml
+name: Jev Gate
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: lymagics/jev-gate@vX.Y.Z
+        with:
+          config: .github/jev-gates.yml
+          mode: diff
+          base: ${{ github.event.pull_request.base.sha }}
+        env:
+          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
 ```
 
 Replace `vX.Y.Z` with a [release](https://github.com/lymagics/jev-gate/releases)
-tag; the Action then installs the same version of `jev-gate` from PyPI. Any
-other ref, such as a branch or a commit, builds the package from source.
+tag. The Action then installs the same version of `jev-gate` from PyPI; any
+other ref, such as a branch or a commit, builds it from source.
 
-`fetch-depth: 0` is required in `diff` mode: the base commit must be in the
-history. Checking out the head commit keeps the merge commit of a pull
-request out of the `commit` scope.
+Two lines in that workflow matter:
 
-| Exit code | Meaning |
-| --- | --- |
-| 0 | No gate fired |
-| 1 | At least one gate fired |
-| 2 | The tool could not finish |
+- `fetch-depth: 0` brings in the full history, so the base commit is there
+  to diff against.
+- `ref: ...head.sha` checks out the real head of the pull request, so the
+  merge commit GitHub creates doesn't get judged as one of your commits.
 
-## Command line
+Open a pull request. Every gate that fires shows up as an annotation on the
+line it is about, and the job fails.
 
-Outside GitHub Actions, install the package from PyPI and call it directly:
+## Writing a gate
 
-```sh
-pip install jev-gate
-export TYPESAFE_API_KEY=...
-jev-gate --config .github/jev-gates.yml --mode diff --base origin/main
-```
-
-It takes the same options as the Action, plus `--root`, the repository
-directory, and `--log`, the output format: `github` (the default) prints
-workflow commands that GitHub shows as annotations, and `plain` prints one
-`file:line: error: gate: text` line per finding. It returns the same exit
-codes.
-
-## GitLab CI
-
-Add a job to `.gitlab-ci.yml` and set `TYPESAFE_API_KEY` as a masked CI/CD
-variable in the project settings:
+A gate is one question about one kind of code:
 
 ```yaml
-jev-gate:
-  image: python:3.15
-  variables:
-    GIT_DEPTH: 0
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-  script:
-    - pip install jev-gate==X.Y.Z
-    - jev-gate --log plain --config .gitlab/jev-gates.yml --mode diff --base "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
+model: jev-1.13.0
+gates:
+  - id: assertion-misses-the-claim      # name shown in findings
+    rule: testing.md 1.2                # optional: where the rule is written down
+    scope: test                         # what kind of code to judge
+    state: [phrase, assertion]          # which parts of it Jev sees
+    ask: >-                             # the yes/no question, in terms of state
+      `phrase` is what the test claims. Does `assertion` check something
+      other than `phrase`?
+    fail_above: 0.9                     # fire when P(yes) is above this
 ```
 
-Replace `X.Y.Z` with a [release](https://github.com/lymagics/jev-gate/releases)
-version.
+A few tips:
 
-`GIT_DEPTH: 0` is required in `diff` mode. GitLab clones only 20 commits by
-default, which leaves the base out of the history and makes `merge-base` fail.
+- **Phrase the question so "yes" means "broken".** The gate fires on a high
+  probability of "yes".
+- **Name every `state` field in the question**, in backticks, so Jev knows
+  what each value is.
+- **Send only the fields the question needs.** Less text means cheaper,
+  sharper answers.
+- **Start strict and loosen.** Begin with `fail_above: 0.9` and lower it
+  once you trust the gate.
 
-In a merged results pipeline, `HEAD` is a synthetic merge commit that would
-land in the `commit` scope. Run the job in a plain merge request pipeline, or
-check out `$CI_MERGE_REQUEST_SOURCE_BRANCH_SHA` before calling `jev-gate`.
+## Recipes
 
-The exit codes are the same: 0, 1 or 2.
+Every gates file below is complete and can be copied as is. The test suite
+validates each one, so they stay in step with the code.
 
-## Gates file
+### One per scope
 
-Top-level keys:
-
-| Key | Purpose |
-| --- | --- |
-| `model` | Pinned Jev version, such as `jev-1.13.0`. Aliases are refused. |
-| `oversize` | `fail` (default) or `skip` |
-| `paths` | `include` and `exclude` globs; `**` crosses directories |
-| `scopes` | Custom syntax scopes (see below) |
-| `gates` | The gates |
-
-Gate keys: `id`, `rule`, `scope`, `allow`, `state`, `ask`, `fail_above`,
-`modes`, `oversize`. A gate fires when the probability is strictly above
-`fail_above`. `allow` lists candidate names the gate never judges: the
-identifier for `type`, `function` and `variable`, the raw test name for
-`test`, the path for `file` and `hunk`, and the subject for `commit`.
-`where` filters are not supported yet.
-
-Gates of one candidate that send the same `state` fields share one request.
-
-Built-in scopes and the fields they offer to `state`:
-
-| Scope | Fields | Modes |
-| --- | --- | --- |
-| `file` | `path`, `text` | diff, full |
-| `hunk` | `path`, `before`, `after` | diff |
-| `commit` | `subject`, `message`, `diff`, `tests` | diff |
-| `test` | `phrase`, `message`, `assertion`, `source` | diff, full |
-| `changed_test` | `before`, `after` | diff |
-| `type` | `name` | diff, full |
-| `function` | `name`, `returns` | diff, full |
-| `variable` | `name` | diff, full |
-| `throw` | `message`, `statement` | diff, full |
-| `catch` | `handler` | diff, full |
-| `log` | `statement` | diff, full |
-
-## Custom scopes
-
-A custom scope gives a tree-sitter query per language pack. Captures name
-the fields; `@candidate` marks the node, and captures starting with `_`
-are ignored. See [a custom scope](#a-custom-scope) for a gate that uses one.
-
-## Examples
-
-Every example below is a complete gates file. The test suite validates
-each one, so they stay in step with the code.
-
-### Built-in scopes
-
-#### file
-
-Catches a module whose content does not match its file name.
+#### file: a module about the wrong thing
 
 ```yaml
 model: jev-1.13.0
@@ -159,10 +170,9 @@ gates:
     fail_above: 0.9
 ```
 
-#### hunk
+#### hunk: code commented out instead of deleted
 
-Catches a change that comments code out instead of deleting it. Diff mode
-only.
+Diff mode only.
 
 ```yaml
 model: jev-1.13.0
@@ -176,10 +186,9 @@ gates:
     fail_above: 0.85
 ```
 
-#### commit
+#### commit: behaviour changed without a test
 
-Catches a commit that changes behaviour without touching a test. Diff mode
-only.
+Diff mode only.
 
 ```yaml
 model: jev-1.13.0
@@ -193,9 +202,7 @@ gates:
     fail_above: 0.9
 ```
 
-#### test
-
-Catches a test whose name promises something its assertion does not check.
+#### test: a name the assertion doesn't back up
 
 ```yaml
 model: jev-1.13.0
@@ -210,9 +217,12 @@ gates:
     fail_above: 0.9
 ```
 
-#### changed_test
+For `def test_rejects_empty_cart(): assert total(cart) == 0`, `phrase` is
+`it rejects empty cart` and `assertion` is `assert total(cart) == 0`.
 
-Catches an edited test that was weakened to make it pass. Diff mode only.
+#### changed_test: a test weakened to make it pass
+
+Diff mode only.
 
 ```yaml
 model: jev-1.13.0
@@ -224,9 +234,7 @@ gates:
     fail_above: 0.8
 ```
 
-#### type
-
-Catches a class named after what it does rather than what it is.
+#### type: a class named after a doer
 
 ```yaml
 model: jev-1.13.0
@@ -241,9 +249,7 @@ gates:
     fail_above: 0.85
 ```
 
-#### function
-
-Catches a method named as a verb that returns a value.
+#### function: a verb that returns a value
 
 ```yaml
 model: jev-1.13.0
@@ -258,9 +264,9 @@ gates:
     fail_above: 0.9
 ```
 
-#### variable
+Fires on `def calculate(self) -> int`, passes `def total(self) -> int`.
 
-Catches a variable with a compound name.
+#### variable: a compound name
 
 ```yaml
 model: jev-1.13.0
@@ -273,9 +279,9 @@ gates:
     fail_above: 0.9
 ```
 
-#### throw
+Fires on `user_account_list`, passes `users`.
 
-Catches an error text that does not say what failed.
+#### throw: an error that doesn't say what failed
 
 ```yaml
 model: jev-1.13.0
@@ -289,9 +295,10 @@ gates:
     fail_above: 0.9
 ```
 
-#### catch
+Fires on `raise Exception("Error")`, passes
+`raise Exception("The gates file 'gates.yml' cannot be read")`.
 
-Catches a handler that swallows the error.
+#### catch: a swallowed exception
 
 ```yaml
 model: jev-1.13.0
@@ -303,9 +310,9 @@ gates:
     fail_above: 0.9
 ```
 
-#### log
+Fires on `except ValueError: pass`.
 
-Catches a log line that writes a secret.
+#### log: a secret written to the log
 
 ```yaml
 model: jev-1.13.0
@@ -317,145 +324,9 @@ gates:
     fail_above: 0.8
 ```
 
-### Options
-
-#### allow
-
-Catches doer class names, except the two names the rule permits.
-
-```yaml
-model: jev-1.13.0
-gates:
-  - id: class-named-after-a-doer-allowed
-    scope: type
-    state: [name]
-    allow: [User, Computer]
-    ask: Does the class name `name` describe what its objects do?
-    fail_above: 0.85
-```
-
-#### Modes
-
-Catches vague test names on a schedule only, and compound type names on
-both pull requests and schedules. A gate without `modes` runs in both;
-gates of diff-only scopes are left out of `full` runs.
-
-```yaml
-model: jev-1.13.0
-gates:
-  - id: vague-test-name
-    scope: test
-    state: [phrase]
-    modes: [full]
-    ask: Does `phrase` fail to name one behaviour of one object?
-    fail_above: 0.9
-
-  - id: compound-type-name
-    scope: type
-    state: [name]
-    modes: [diff, full]
-    ask: Is the type name `name` built from more than one noun?
-    fail_above: 0.9
-```
-
-#### Oversize
-
-Catches unclear commit subjects and skips commits too large to send, while
-every other gate fails on oversize input as the top level says.
-
-```yaml
-model: jev-1.13.0
-oversize: fail
-gates:
-  - id: commit-subject-hides-intent
-    scope: commit
-    state: [subject, diff]
-    oversize: skip
-    ask: Does `subject` fail to say why `diff` was made?
-    fail_above: 0.95
-
-  - id: file-mixes-concerns
-    scope: file
-    state: [text]
-    ask: Does `text` mix more than one concern?
-    fail_above: 0.9
-```
-
-The same file with `oversize: skip` at the top level skips oversize input
-for every gate that does not set its own `oversize`.
-
-#### Paths
-
-Catches lying error texts in source and tests, but not in generated code
-or vendored files.
-
-```yaml
-model: jev-1.13.0
-paths:
-  include: ["src/**", "tests/**"]
-  exclude: ["**/generated/**", "src/vendor/**"]
-gates:
-  - id: error-text-lies
-    scope: throw
-    state: [message, statement]
-    ask: Does `message` describe a different failure than `statement` raises?
-    fail_above: 0.9
-```
-
-#### Shared requests
-
-Catches failure messages that disagree with the test name and ones that
-are empty of meaning, in one request per test, because both gates send
-`[phrase, message]`.
-
-```yaml
-model: jev-1.13.0
-gates:
-  - id: failure-message-disagrees-with-name
-    rule: testing.md 1.3
-    scope: test
-    state: [phrase, message]
-    ask: >-
-      `phrase` is what the test claims. `message` is the text shown when the
-      test fails. Does `message` describe a different behaviour, or a
-      different object, than `phrase`?
-    fail_above: 0.9
-
-  - id: failure-message-says-nothing
-    scope: test
-    state: [message, phrase]
-    ask: Does `message` say nothing a reader of `phrase` would not already know?
-    fail_above: 0.9
-```
-
-#### A custom scope
-
-Catches BDD steps in Python whose phrase does not describe what the step
-does.
-
-```yaml
-model: jev-1.13.0
-scopes:
-  bdd_step:
-    fields: [phrase, source]
-    packs:
-      python:
-        match: |
-          ((decorated_definition
-             (decorator) @_d
-             definition: (function_definition name: (identifier) @phrase)) @candidate @source
-           (#match? @_d "^@(given|when|then)"))
-gates:
-  - id: step-phrase-disagrees-with-body
-    scope: bdd_step
-    state: [phrase, source]
-    ask: Does `source` do something other than `phrase` says?
-    fail_above: 0.9
-```
-
 ### A complete gates file
 
-A starting point to copy to `.github/jev-gates.yml`.
+A starting point with five common gates.
 
 ```yaml
 model: jev-1.13.0
@@ -506,42 +377,13 @@ gates:
     fail_above: 0.95
 ```
 
-### Workflows
+## Options
 
-#### Diff mode on pull requests
+### Diff mode and full mode
 
-Judges only what a pull request touches.
-
-```yaml
-name: Jev Gate
-
-on:
-  pull_request:
-
-permissions:
-  contents: read
-
-jobs:
-  gate:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
-      - uses: lymagics/jev-gate@vX.Y.Z
-        with:
-          config: .github/jev-gates.yml
-          mode: diff
-          base: ${{ github.event.pull_request.base.sha }}
-        env:
-          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
-```
-
-#### Full mode on a schedule
-
-Judges every candidate in the repository once a week.
+`diff` judges only what a change touches: the classes, tests and hunks a
+pull request adds or edits. `full` judges every candidate in the
+repository, which suits a weekly run:
 
 ```yaml
 name: Jev Gate Full
@@ -567,6 +409,251 @@ jobs:
         env:
           TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
 ```
+
+A gate runs in both modes unless it says otherwise with `modes`. Here vague
+test names are checked only on the weekly run, while compound type names
+are checked everywhere:
+
+```yaml
+model: jev-1.13.0
+gates:
+  - id: vague-test-name
+    scope: test
+    state: [phrase]
+    modes: [full]
+    ask: Does `phrase` fail to name one behaviour of one object?
+    fail_above: 0.9
+
+  - id: compound-type-name
+    scope: type
+    state: [name]
+    modes: [diff, full]
+    ask: Is the type name `name` built from more than one noun?
+    fail_above: 0.9
+```
+
+Gates on diff-only scopes (`hunk`, `commit`, `changed_test`) are left out
+of `full` runs.
+
+### allow: names a gate never judges
+
+The rule bans doer names, but `User` and `Computer` are fine:
+
+```yaml
+model: jev-1.13.0
+gates:
+  - id: class-named-after-a-doer-allowed
+    scope: type
+    state: [name]
+    allow: [User, Computer]
+    ask: Does the class name `name` describe what its objects do?
+    fail_above: 0.85
+```
+
+What `allow` matches depends on the scope: the identifier for `type`,
+`function` and `variable`, the raw test name for `test`, the path for
+`file` and `hunk`, and the subject for `commit`.
+
+### paths: which files to read
+
+Check source and tests, but skip generated and vendored code. `**` crosses
+directories.
+
+```yaml
+model: jev-1.13.0
+paths:
+  include: ["src/**", "tests/**"]
+  exclude: ["**/generated/**", "src/vendor/**"]
+gates:
+  - id: error-text-lies
+    scope: throw
+    state: [message, statement]
+    ask: Does `message` describe a different failure than `statement` raises?
+    fail_above: 0.9
+```
+
+### oversize: input too large for Jev
+
+Some candidates, like a huge commit, are too large to send. By default
+(`fail`) that stops the pipeline; `skip` reports a warning and moves on. Set
+it for the whole file and override it per gate. Here only the commit gate
+skips:
+
+```yaml
+model: jev-1.13.0
+oversize: fail
+gates:
+  - id: commit-subject-hides-intent
+    scope: commit
+    state: [subject, diff]
+    oversize: skip
+    ask: Does `subject` fail to say why `diff` was made?
+    fail_above: 0.95
+
+  - id: file-mixes-concerns
+    scope: file
+    state: [text]
+    ask: Does `text` mix more than one concern?
+    fail_above: 0.9
+```
+
+### Shared requests
+
+Gates on the same candidate that send the same `state` fields share one
+request to Jev, in any order. These two gates cost one request per test:
+
+```yaml
+model: jev-1.13.0
+gates:
+  - id: failure-message-disagrees-with-name
+    rule: testing.md 1.3
+    scope: test
+    state: [phrase, message]
+    ask: >-
+      `phrase` is what the test claims. `message` is the text shown when the
+      test fails. Does `message` describe a different behaviour, or a
+      different object, than `phrase`?
+    fail_above: 0.9
+
+  - id: failure-message-says-nothing
+    scope: test
+    state: [message, phrase]
+    ask: Does `message` say nothing a reader of `phrase` would not already know?
+    fail_above: 0.9
+```
+
+### Custom scopes
+
+When no built-in scope fits, define one with a
+[tree-sitter query](https://tree-sitter.github.io/tree-sitter/using-parsers/queries/)
+per language. `@candidate` marks the node to judge, other captures become
+`state` fields, and captures starting with `_` are ignored.
+
+This one judges BDD steps in Python, functions decorated with `@given`,
+`@when` or `@then`:
+
+```yaml
+model: jev-1.13.0
+scopes:
+  bdd_step:
+    fields: [phrase, source]
+    packs:
+      python:
+        match: |
+          ((decorated_definition
+             (decorator) @_d
+             definition: (function_definition name: (identifier) @phrase)) @candidate @source
+           (#match? @_d "^@(given|when|then)"))
+gates:
+  - id: step-phrase-disagrees-with-body
+    scope: bdd_step
+    state: [phrase, source]
+    ask: Does `source` do something other than `phrase` says?
+    fail_above: 0.9
+```
+
+## Running outside GitHub
+
+### Command line
+
+```sh
+pip install jev-gate
+export TYPESAFE_API_KEY=...
+jev-gate --config .github/jev-gates.yml --mode diff --base origin/main --log plain
+```
+
+`--log plain` prints one `file:line: error: gate: text` line per finding,
+like the sample in [How it works](#how-it-works). The default, `github`,
+prints workflow commands that GitHub turns into annotations. `--root` sets
+the repository directory if it isn't the current one.
+
+### GitLab CI
+
+Set `TYPESAFE_API_KEY` as a masked CI/CD variable, then add a job to
+`.gitlab-ci.yml`:
+
+```yaml
+jev-gate:
+  image: python:3.15
+  variables:
+    GIT_DEPTH: 0
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - pip install jev-gate==X.Y.Z
+    - jev-gate --log plain --config .gitlab/jev-gates.yml --mode diff --base "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
+```
+
+Replace `X.Y.Z` with a [release](https://github.com/lymagics/jev-gate/releases)
+version.
+
+- `GIT_DEPTH: 0` is needed in diff mode. GitLab clones only 20 commits by
+  default, which can leave the base out of the history.
+- In a merged results pipeline, `HEAD` is a synthetic merge commit that
+  would be judged by the `commit` scope. Run the job in a plain merge
+  request pipeline, or check out `$CI_MERGE_REQUEST_SOURCE_BRANCH_SHA`
+  before calling `jev-gate`.
+
+## Reference
+
+### Action inputs and command options
+
+| Input | Option | Default | Meaning |
+| --- | --- | --- | --- |
+| `config` | `--config` | `.github/jev-gates.yml` | Path to the gates file |
+| `mode` | `--mode` | `diff` | `diff` or `full` |
+| `base` | `--base` | | Commit to compare with; required in diff mode |
+| `jobs` | `--jobs` | `8` | Requests sent to Jev in parallel |
+| | `--root` | `.` | Repository directory |
+| | `--log` | `github` | `github` or `plain` |
+
+### Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| 0 | No gate fired |
+| 1 | At least one gate fired |
+| 2 | Jev Gate could not finish, for example a broken gates file |
+
+### Gates file
+
+| Key | Meaning |
+| --- | --- |
+| `model` | Pinned Jev version, such as `jev-1.13.0`. Aliases are refused. |
+| `oversize` | `fail` (default) or `skip` |
+| `paths` | `include` and `exclude` globs |
+| `scopes` | Custom scopes |
+| `gates` | The gates |
+
+| Gate key | Required | Meaning |
+| --- | --- | --- |
+| `id` | yes | Name shown in findings |
+| `scope` | yes | What kind of code to judge |
+| `state` | yes | Fields of the candidate Jev sees |
+| `ask` | yes | The yes/no question |
+| `fail_above` | yes | Fire when the probability is strictly above this |
+| `rule` | no | Where the rule is written down; shown in findings |
+| `allow` | no | Candidate names never judged |
+| `modes` | no | `diff`, `full` or both (default) |
+| `oversize` | no | Overrides the top-level `oversize` |
+
+`where` filters are not supported yet.
+
+### Built-in scopes
+
+| Scope | Judges | Fields | Modes |
+| --- | --- | --- | --- |
+| `file` | A whole file | `path`, `text` | diff, full |
+| `hunk` | One changed block of a diff | `path`, `before`, `after` | diff |
+| `commit` | One commit | `subject`, `message`, `diff`, `tests` | diff |
+| `test` | A test function | `phrase`, `message`, `assertion`, `source` | diff, full |
+| `changed_test` | A test edited by the change | `before`, `after` | diff |
+| `type` | A class, struct, interface or enum | `name` | diff, full |
+| `function` | A public function or method | `name`, `returns` | diff, full |
+| `variable` | A variable or parameter | `name` | diff, full |
+| `throw` | A raise or throw | `message`, `statement` | diff, full |
+| `catch` | An except or catch block | `handler` | diff, full |
+| `log` | A logging call | `statement` | diff, full |
 
 ## Development
 
