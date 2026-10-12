@@ -16,6 +16,7 @@ with a probability, and code compares it with a threshold.
   - [A complete gates file](#a-complete-gates-file)
   - [Workflows](#workflows)
 - [Development](#development)
+- [How to report issues](#how-to-report-issues)
 
 ## Usage
 
@@ -524,3 +525,30 @@ make unit      # fast tests with coverage
 make e2e       # deep tests
 make black flake8 ruff
 ```
+
+## How to report issues
+
+### Enhancements
+
+Open an issue labelled `enhancement` that describes the behaviour you want
+and why it helps. You don't need to write code.
+
+### Bugs in code
+
+Open a pull request, not an issue. It must include a test that fails on the
+current code, marked with `@pytest.mark.skip` so CI stays green:
+
+```python
+@pytest.mark.skip(reason="Reproduces #42, unskip once fixed")
+def test_skips_hunk_with_only_whitespace_changes():
+    ...
+```
+
+The fix can come in the same pull request or a later one, which removes the
+skip. If you can't push to the repository, fork it first.
+
+### Bugs outside code
+
+For bugs a test can't reproduce (documentation, `action.yml` wiring,
+packaging, CI workflows), open an issue labelled `bug` that gives the
+expected behaviour, the actual behaviour and how to observe it.
