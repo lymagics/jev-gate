@@ -1,5 +1,8 @@
 # Jev Gate
 
+[![EO principles respected here](https://www.elegantobjects.org/badge.svg)](https://www.elegantobjects.org)
+[![PyPI Downloads](https://static.pepy.tech/personalized-badge/jev-gate?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/jev-gate)
+
 Linters catch what a parser can see: a missing semicolon, an unused import,
 a line that is too long. They can't tell you that `InvoiceBuilder` is named
 after what it does rather than what it is, that a test called
