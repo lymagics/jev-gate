@@ -27,7 +27,7 @@ dev = [
     "hypothesis==6.169.3",
     "black==26.10.1",
     "flake8==7.4.1",
-    "ruff==0.17.0",
+    "ruff==0.17.1",
 ]
 
 [project.scripts]
