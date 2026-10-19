@@ -1,3 +1,4 @@
+import pytest
 from hamcrest import assert_that, calling, equal_to, raises
 
 from jev_gate.hunk import Hunk
@@ -51,4 +52,18 @@ def test_numbers_added_lines_on_the_new_side():
         ).added(),
         equal_to({8, 10}),
         "Added lines must be numbered on the new side",
+    )
+
+
+# TODO: Bug: a form feed splits a hunk line and drops the rest
+# https://github.com/lymagics/jev-gate/pull/27
+@pytest.mark.skip(
+    reason="Bug: a form feed splits a hunk line and drops the rest "
+    "https://github.com/lymagics/jev-gate/pull/27"
+)
+def test_keeps_an_added_line_with_a_form_feed_whole():
+    assert_that(
+        Hunk("ff.py", "@@ -1 +1,2 @@\n x\n+q\x0cz\n+w\n").after(),
+        equal_to("x\nq\x0cz\nw\n"),
+        "A form feed inside a line must not split the line",
     )
