@@ -72,3 +72,14 @@ def test_prints_its_text():
         equal_to("diff --git a/q b/q\n"),
         "A section must print its raw text",
     )
+
+
+def test_names_the_file_despite_an_added_line_that_looks_like_a_header():
+    assert_that(
+        Section(
+            "diff --git a/lib/zq.py b/lib/zq.py\n--- a/lib/zq.py\n+++ b/lib/zq.py\n"
+            "@@ -1 +1,2 @@\n kept\n+++ 7 odd\n"
+        ).path(),
+        equal_to("lib/zq.py"),
+        "A body line starting with '+++ ' must not rename the file",
+    )
