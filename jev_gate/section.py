@@ -11,7 +11,9 @@ class Section:
         names = {
             side: self._unquoted(name)
             for side, name in re.findall(
-                r"^(---|\+\+\+) (.+?)\t?$", self.text, re.MULTILINE
+                r"^(---|\+\+\+) (.+?)\t?$",
+                re.split(r"^@@ ", self.text, maxsplit=1, flags=re.MULTILINE)[0],
+                re.MULTILINE,
             )
         }
         chosen = names.get("+++", "/dev/null")
