@@ -1,4 +1,3 @@
-import pytest
 from hamcrest import assert_that, calling, equal_to, raises
 
 from jev_gate.hunk import Hunk
@@ -55,12 +54,6 @@ def test_numbers_added_lines_on_the_new_side():
     )
 
 
-# TODO: Bug: a form feed splits a hunk line and drops the rest
-# https://github.com/lymagics/jev-gate/pull/27
-@pytest.mark.skip(
-    reason="Bug: a form feed splits a hunk line and drops the rest "
-    "https://github.com/lymagics/jev-gate/pull/27"
-)
 def test_keeps_an_added_line_with_a_form_feed_whole():
     assert_that(
         Hunk("ff.py", "@@ -1 +1,2 @@\n x\n+q\x0cz\n+w\n").after(),

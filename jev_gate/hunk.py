@@ -29,4 +29,4 @@ class Hunk:
         return numbers
 
     def _body(self) -> list[str]:
-        return self.text.splitlines(keepends=True)[1:]
+        return re.split(r"(?<=\n)", self.text)[1:]
