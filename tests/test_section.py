@@ -1,4 +1,3 @@
-import pytest
 from hamcrest import assert_that, calling, equal_to, has_length, raises
 
 from jev_gate.section import Section
@@ -75,12 +74,6 @@ def test_prints_its_text():
     )
 
 
-# TODO: Bug: '+++ ' body line renames the file
-# https://github.com/lymagics/jev-gate/pull/26
-@pytest.mark.skip(
-    reason="Bug: '+++ ' body line renames the file "
-    "https://github.com/lymagics/jev-gate/pull/26"
-)
 def test_names_the_file_despite_an_added_line_that_looks_like_a_header():
     assert_that(
         Section(
