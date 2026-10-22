@@ -14,6 +14,14 @@ def valid(text: str) -> ValidGatesFile:
     return ValidGatesFile(GatesFile(text, CATALOG), text, CATALOG)
 
 
+def skipping(entries: str) -> str:
+    return (
+        "model: m\ngates:\n"
+        "  - {id: g, scope: test, state: [phrase], ask: q, fail_above: 0.5}\n"
+        f"skip: {entries}\n"
+    )
+
+
 def test_accepts_a_well_formed_file():
     assert_that(
         [
@@ -29,6 +37,7 @@ def test_accepts_a_well_formed_file():
                 "    allow: [test_legacy]\n"
                 "  - {id: stories, scope: story, state: [phrase], ask: 'Is it vague?', "
                 "fail_above: 0}\n"
+                "skip:\n  - {gates: [stories], path: 'old/**', name: x, reason: Legacy}\n"
             ).gates("diff")
         ],
         contains_exactly("failure-message-disagrees-with-name", "stories"),
@@ -119,6 +128,32 @@ def test_accepts_a_well_formed_file():
             ),
             "must be unique",
         ),
+        (skipping("[{gates: [g], name: n}]"), "entry 1 gives no reason"),
+        (
+            skipping(
+                "[{gates: [g], name: n, reason: r}, {gates: [g], name: m, reason: ' '}]"
+            ),
+            "entry 2 gives no reason",
+        ),
+        (skipping("[{gates: [], name: n, reason: r}]"), "entry 1 names no gate"),
+        (
+            skipping("[{gates: [g, ghost], name: n, reason: r}]"),
+            "entry 1 names unknown gates .'ghost'.",
+        ),
+        (
+            skipping("[{gates: [g], reason: r}]"),
+            "entry 1 sets neither 'path' nor 'name'",
+        ),
+        (
+            skipping("[{gates: [g], name: n, reason: r, line: 12}]"),
+            "entry 1 has unknown keys .'line'.",
+        ),
+        (
+            skipping("[{gates: [g], name: [n], reason: r}]"),
+            "entry 1 needs 'path' and 'name' as text",
+        ),
+        (skipping("[plain]"), "entry 1 must be a mapping"),
+        (skipping("{gates: [g]}"), "'skip' must be a list"),
         ("model: m\nscopes: [x]\ngates: []\n", "'scopes' must be a mapping"),
         (
             "model: m\nscopes:\n  test: {fields: [a], packs: {}}\ngates: []\n",

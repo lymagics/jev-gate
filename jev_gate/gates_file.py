@@ -2,6 +2,7 @@ import yaml
 
 from jev_gate.contracts import Gate, Mask, Settings
 from jev_gate.gate import YamlGate
+from jev_gate.lenient_gate import LenientGate
 from jev_gate.paths import Paths
 
 
@@ -15,7 +16,14 @@ class GatesFile(Settings):
 
     def gates(self, mode: str) -> list[Gate]:
         return [
-            YamlGate(gate, self._document().get("oversize", "fail"))
+            LenientGate(
+                YamlGate(gate, self._document().get("oversize", "fail")),
+                [
+                    entry
+                    for entry in self._document().get("skip") or []
+                    if gate["id"] in entry["gates"]
+                ],
+            )
             for gate in self._active(mode)
         ]
 

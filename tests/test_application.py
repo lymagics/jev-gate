@@ -62,6 +62,42 @@ def test_passes_when_no_gate_fires():
         )
 
 
+def test_warns_about_a_skipped_candidate_without_asking_jev():
+    with Scratch("app-skips") as scratch:
+        scratch.write(
+            {
+                "g.yml": GATES.replace(
+                    "gates:",
+                    "skip:\n  - gates: [vague-type-name]\n    name: Parser\n"
+                    "    reason: The plugin API needs it\ngates:",
+                ),
+                "src/parser.py": "class Parser:\n    pass\n",
+            }
+        ).commit("only")
+        log = FakeLog()
+        Application(
+            [
+                "--config",
+                os.path.join(scratch.path, "g.yml"),
+                "--mode",
+                "full",
+                "--root",
+                scratch.path,
+            ],
+            FakeConnection(FakeModel({})),
+            log,
+        ).code()
+        assert_that(
+            log.lines,
+            has_item(
+                "warning {'file': 'src/parser.py', 'line': '1'} vague-type-name: "
+                "vague-type-name skipped Parser at src/parser.py:1: "
+                "The plugin API needs it"
+            ),
+            "A skipped candidate must be reported with its reason",
+        )
+
+
 def test_judges_nothing_untouched_in_diff_mode():
     with Scratch("app-untouched") as scratch:
         base = scratch.write(

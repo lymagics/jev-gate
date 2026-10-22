@@ -1,6 +1,8 @@
 from hamcrest import assert_that, calling, contains_exactly, equal_to, raises
 
+from jev_gate.candidate import FieldCandidate
 from jev_gate.gates_file import GatesFile
+from jev_gate.span import Span
 
 CATALOG = {
     "file": {"fields": ["path", "text"], "modes": ["diff", "full"]},
@@ -32,6 +34,23 @@ def test_keeps_only_gates_of_the_mode():
         ],
         contains_exactly("both", "only-full"),
         "Full mode must drop diff-only gates and gates restricted to diff",
+    )
+
+
+def test_skips_only_the_gates_an_entry_names():
+    assert_that(
+        [
+            gate.admits(FieldCandidate("type", "Parser", Span("p/parser.py", 1, 2), {}))
+            for gate in GatesFile(
+                "model: m\nskip:\n  - {gates: [named], path: 'p/*', reason: API}\n"
+                "gates:\n"
+                "  - {id: named, scope: type, state: [name], ask: q, fail_above: 0.5}\n"
+                "  - {id: other, scope: type, state: [name], ask: q, fail_above: 0.5}\n",
+                CATALOG,
+            ).gates("diff")
+        ],
+        contains_exactly(False, True),
+        "A skip entry must silence only the gates it names",
     )
 
 

@@ -44,7 +44,7 @@ class ValidGatesFile(Settings):
         )
         self._keys(
             document,
-            {"model", "oversize", "paths", "scopes", "gates"},
+            {"model", "oversize", "paths", "scopes", "skip", "gates"},
             "The gates file",
         )
         self._model(document.get("model"))
@@ -64,6 +64,10 @@ class ValidGatesFile(Settings):
             f"Gate ids must be unique, but {sorted({n for n in names if names.count(n) > 1})} "
             "repeat",
         )
+        skips = document.get("skip", [])
+        self._require(isinstance(skips, list), "'skip' must be a list")
+        for index, entry in enumerate(skips, 1):
+            self._skip(entry, f"The skip entry {index}", names)
 
     def _model(self, model: object):
         self._require(
@@ -172,6 +176,28 @@ class ValidGatesFile(Settings):
         )
         self._strings(gate.get("allow", []), f"{owner} 'allow'")
         self._oversize(gate.get("oversize", "fail"), owner)
+
+    def _skip(self, entry: object, owner: str, names: list[str]):
+        self._require(isinstance(entry, dict), f"{owner} must be a mapping")
+        self._keys(entry, {"gates", "reason", "path", "name"}, owner)
+        self._require(
+            isinstance(entry.get("reason"), str) and entry["reason"].strip() != "",
+            f"{owner} gives no reason",
+        )
+        self._strings(entry.get("gates"), f"{owner} 'gates'")
+        self._require(len(entry["gates"]) > 0, f"{owner} names no gate")
+        unknown = sorted(set(entry["gates"]) - set(names))
+        self._require(not unknown, f"{owner} names unknown gates {unknown}")
+        self._require(
+            "path" in entry or "name" in entry,
+            f"{owner} sets neither 'path' nor 'name', which would turn the gate off",
+        )
+        self._require(
+            all(
+                isinstance(entry[key], str) for key in ("path", "name") if key in entry
+            ),
+            f"{owner} needs 'path' and 'name' as text",
+        )
 
     def _keys(self, data: dict, allowed: set[str], owner: str):
         extra = sorted(set(data) - allowed)

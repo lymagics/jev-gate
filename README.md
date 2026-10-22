@@ -457,6 +457,32 @@ What `allow` matches depends on the scope: the identifier for `type`,
 `function` and `variable`, the raw test name for `test`, the path for
 `file` and `hunk`, and the subject for `commit`.
 
+### skip: silence a false positive
+
+`allow` silences a name in every file, and `paths.exclude` hides a file from
+every gate. When one gate is wrong about one thing in one file, list it under
+`skip` with the reason:
+
+```yaml
+model: jev-1.13.0
+skip:
+  - gates: [class-named-after-a-doer-skipped]
+    path: src/plugin/parser.py
+    name: Parser
+    reason: The plugin API requires this class name
+gates:
+  - id: class-named-after-a-doer-skipped
+    scope: type
+    state: [name]
+    ask: Does the class name `name` describe what its objects do?
+    fail_above: 0.85
+```
+
+An entry matches a candidate when every key it sets matches. `path` is a glob
+on the candidate's file, as in `paths`; `name` matches what `allow` matches.
+A skipped candidate is never sent to Jev; it shows up as a warning with the
+reason and leaves the exit code alone.
+
 ### paths: which files to read
 
 Check source and tests, but skip generated and vendored code. `**` crosses
@@ -626,6 +652,7 @@ version.
 | `oversize` | `fail` (default) or `skip` |
 | `paths` | `include` and `exclude` globs |
 | `scopes` | Custom scopes |
+| `skip` | False positives to silence, see below |
 | `gates` | The gates |
 
 | Gate key | Required | Meaning |
@@ -641,6 +668,13 @@ version.
 | `oversize` | no | Overrides the top-level `oversize` |
 
 `where` filters are not supported yet.
+
+| Skip key | Required | Meaning |
+| --- | --- | --- |
+| `gates` | yes | Gate ids to skip; at least one |
+| `reason` | yes | Why the finding is a false positive |
+| `path` | one of `path`/`name` | Glob on the candidate's file, same syntax as `paths` |
+| `name` | one of `path`/`name` | Exact candidate name, as `allow` matches it |
 
 ### Built-in scopes
 
