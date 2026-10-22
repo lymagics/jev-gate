@@ -13,7 +13,7 @@ from jev_gate.verdicts import Blocked, Fired, LeftOut, Passed, Skipped
     [
         (Passed("g"), 0),
         (Fired("g", "r", FieldCandidate("type", "T", Span("t.go", 1, 1), {}), 0.9), 1),
-        (Skipped("g", FieldCandidate("file", "big", Span("big", 1, 1), {})), 0),
+        (Skipped("g", FieldCandidate("file", "big", Span("big", 1, 1), {}), "r"), 0),
         (Blocked("g", FieldCandidate("file", "big", Span("big", 1, 1), {})), 2),
         (LeftOut("g", "returns", 3), 0),
     ],
@@ -53,15 +53,17 @@ def test_fired_reports_gate_place_and_probability():
 def test_skipped_warns_about_the_candidate():
     log = FakeLog()
     Skipped(
-        "big-gate", FieldCandidate("file", "dump.sql", Span("dump.sql", 1, 1), {})
+        "big-gate",
+        FieldCandidate("file", "dump.sql", Span("dump.sql", 1, 1), {}),
+        "Seed data, never read by people",
     ).report(log)
     assert_that(
         log.lines,
         contains_exactly(
             "warning {'file': 'dump.sql', 'line': '1'} big-gate: big-gate skipped dump.sql at "
-            "dump.sql:1 because it is too large for the model"
+            "dump.sql:1: Seed data, never read by people"
         ),
-        "A skip must warn and name the candidate",
+        "A skip must warn and name the candidate and the reason",
     )
 
 

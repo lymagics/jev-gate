@@ -4,6 +4,7 @@ from hamcrest import assert_that, calling, contains_exactly, equal_to, raises
 from fakes import BrokenModel, EchoModel, FakeCandidates, FakeModel, OversizedModel
 from jev_gate.candidate import FieldCandidate
 from jev_gate.gate import YamlGate
+from jev_gate.lenient_gate import LenientGate
 from jev_gate.span import Span
 from jev_gate.trial import Trial
 
@@ -85,6 +86,34 @@ def test_splits_requests_by_state_fields():
         ],
         contains_exactly(0, 1),
         "Gates with different state must not see each other's fields",
+    )
+
+
+def test_asks_nothing_for_a_skipped_gate():
+    assert_that(
+        [
+            verdict.code()
+            for verdict in Trial(
+                [
+                    gate("judged", "type", ["name"], 0.5),
+                    LenientGate(
+                        gate("excused", "type", ["name"], 0.5),
+                        [{"name": "Handler", "reason": "The SDK names it"}],
+                    ),
+                ],
+                FakeCandidates(
+                    [
+                        FieldCandidate(
+                            "type", "Handler", Span("h.py", 2, 5), {"name": "H"}
+                        )
+                    ]
+                ),
+                FakeModel({"judged": 0.99}),
+                1,
+            ).verdicts()
+        ],
+        contains_exactly(1, 0),
+        "A skipped gate must not be asked, while the other gate still judges",
     )
 
 

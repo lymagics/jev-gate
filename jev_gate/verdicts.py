@@ -34,16 +34,17 @@ class Fired(Verdict):
 
 
 class Skipped(Verdict):
-    def __init__(self, gate: str, candidate: Candidate):
+    def __init__(self, gate: str, candidate: Candidate, reason: str):
         self.gate = gate
         self.candidate = candidate
+        self.reason = reason
 
     def report(self, log: Log):
         log.warning(
             self.candidate.place(),
             self.gate,
-            f"{self.gate} skipped {self.candidate.name()} at {self.candidate.place()} "
-            "because it is too large for the model",
+            f"{self.gate} skipped {self.candidate.name()} at {self.candidate.place()}: "
+            f"{self.reason}",
         )
 
     def code(self) -> int:

@@ -138,6 +138,10 @@ class Gate(ABC):
         pass
 
     @abstractmethod
+    def excuses(self, candidate: Candidate) -> list[Verdict]:
+        pass
+
+    @abstractmethod
     def fields(self) -> tuple[str, ...]:
         pass
 

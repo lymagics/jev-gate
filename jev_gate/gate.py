@@ -15,6 +15,9 @@ class YamlGate(Gate):
             "scope"
         ] and candidate.name() not in self.data.get("allow", [])
 
+    def excuses(self, candidate: Candidate) -> list[Verdict]:
+        return []
+
     def fields(self) -> tuple[str, ...]:
         return tuple(self.data["state"])
 
@@ -24,7 +27,7 @@ class YamlGate(Gate):
     def verdict(self, candidate: Candidate, answer: Answer) -> Verdict:
         result: Verdict = Passed(self.name())
         if answer.oversized() and self.data.get("oversize", self.oversize) == "skip":
-            result = Skipped(self.name(), candidate)
+            result = Skipped(self.name(), candidate, "it is too large for the model")
         elif answer.oversized():
             result = Blocked(self.name(), candidate)
         elif answer.probability() > float(self.data["fail_above"]):

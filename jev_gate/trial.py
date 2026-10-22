@@ -17,7 +17,9 @@ class Trial:
     def verdicts(self) -> list[Verdict]:
         requests: list[tuple[Candidate, dict[str, str], list[Gate]]] = []
         unknown: Counter[tuple[str, str]] = Counter()
+        excused: list[Verdict] = []
         for candidate in self.candidates:
+            excused.extend(v for gate in self.gates for v in gate.excuses(candidate))
             for fields, group in self._groups(candidate).items():
                 state = candidate.state(fields)
                 if state.known():
@@ -26,10 +28,14 @@ class Trial:
                     unknown.update((gate.name(), state.missing()) for gate in group)
         with ThreadPoolExecutor(max_workers=self.jobs) as pool:
             judged = list(pool.map(lambda request: self._judged(*request), requests))
-        return [verdict for verdicts in judged for verdict in verdicts] + [
-            LeftOut(gate, field, count)
-            for (gate, field), count in sorted(unknown.items())
-        ]
+        return (
+            [verdict for verdicts in judged for verdict in verdicts]
+            + excused
+            + [
+                LeftOut(gate, field, count)
+                for (gate, field), count in sorted(unknown.items())
+            ]
+        )
 
     def _groups(self, candidate: Candidate) -> dict[tuple[str, ...], list[Gate]]:
         groups: dict[tuple[str, ...], list[Gate]] = {}
