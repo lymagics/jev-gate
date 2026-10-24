@@ -24,7 +24,7 @@ dev = [
     "pytest-fail-slow==0.6.0",
     "pytest-repeat==0.9.4",
     "pytest-cov==7.1.0",
-    "hypothesis==6.170.5",
+    "hypothesis==6.170.9",
     "black==26.10.1",
     "flake8==7.4.1",
     "ruff==0.17.1",
