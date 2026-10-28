@@ -18,7 +18,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest==9.1.1",
+    "pytest==9.2.0",
     "pyhamcrest==2.1.0",
     "pytest-randomly==5.0.0",
     "pytest-fail-slow==0.6.0",
