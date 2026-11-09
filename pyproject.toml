@@ -20,7 +20,7 @@ dependencies = [
 dev = [
     "pytest==9.2.0",
     "pyhamcrest==2.1.0",
-    "pytest-randomly==5.0.0",
+    "pytest-randomly==5.1.0",
     "pytest-fail-slow==0.6.0",
     "pytest-repeat==0.9.4",
     "pytest-cov==7.1.0",
