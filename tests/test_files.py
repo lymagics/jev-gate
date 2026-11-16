@@ -1,7 +1,13 @@
+import os
+
+import pytest
 from hamcrest import assert_that, contains_exactly, equal_to
 
 from fakes import FakeTree
 from jev_gate.files import Files
+from jev_gate.git import GitRepository
+from jev_gate.worktree import Worktree
+from scratch import Scratch
 
 
 def test_offers_each_text_file():
@@ -42,3 +48,22 @@ def test_spans_the_whole_file():
         equal_to({"file": "many.txt", "line": "1"}),
         "A file must start at its first line",
     )
+
+
+# TODO: Bug: a tracked symlink to a directory crashes the file scope, see PR
+@pytest.mark.skip(reason="Bug: a symlink to a directory crashes the file scope, see PR")
+def test_skips_a_tracked_symlink_to_a_directory():
+    with Scratch("files-symlink") as scratch:
+        scratch.write({"shared/ß.cfg": "k=v", "notes.rst": "Ωmega"})
+        os.symlink("shared", os.path.join(scratch.path, "linked"))
+        scratch.commit("link a folder")
+        assert_that(
+            [
+                candidate.name()
+                for candidate in Files(
+                    Worktree(GitRepository(scratch.path), scratch.path)
+                )
+            ],
+            contains_exactly("notes.rst", "shared/ß.cfg"),
+            "A symlink to a directory must not be read as a text file",
+        )
