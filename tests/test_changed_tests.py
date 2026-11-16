@@ -1,5 +1,6 @@
 import os
 
+import pytest
 from hamcrest import assert_that, contains_exactly, equal_to
 
 from fakes import FakeLines, FakeTree
@@ -74,4 +75,37 @@ def test_ignores_tests_of_new_files():
         ),
         equal_to([]),
         "A test in a new file must not count as changed",
+    )
+
+
+# TODO: Bug: a new test is paired with an older namesake in another class, see PR
+@pytest.mark.skip(reason="Bug: a new test is paired with an older namesake, see PR")
+def test_ignores_new_test_that_shares_a_name_with_an_old_one():
+    assert_that(
+        list(
+            ChangedTests(
+                FakeTree(
+                    {
+                        "shelf_test.py": "class TestCart:\n"
+                        "    def test_empty(self):\n"
+                        "        assert 41\n"
+                    }
+                ),
+                FakeTree(
+                    {
+                        "shelf_test.py": "class TestCart:\n"
+                        "    def test_empty(self):\n"
+                        "        assert 41\n"
+                        "\n\nclass TestShelf:\n"
+                        "    def test_empty(self):\n"
+                        "        assert 97\n"
+                    }
+                ),
+                packs(),
+                FakeLines({"shelf_test.py": {4, 5, 6, 7, 8}}),
+            )
+        ),
+        equal_to([]),
+        "A brand-new test must not count as a changed version of an older test "
+        "with the same name in another class",
     )
