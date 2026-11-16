@@ -78,8 +78,10 @@ def test_ignores_tests_of_new_files():
     )
 
 
-# TODO: Bug: a new test is paired with an older namesake in another class, see PR
-@pytest.mark.skip(reason="Bug: a new test is paired with an older namesake, see PR")
+# TODO: Bug: a new test is paired with an older namesake in another class, see https://github.com/lymagics/jev-gate/pull/53
+@pytest.mark.skip(
+    reason="Bug: a new test is paired with an older namesake, see https://github.com/lymagics/jev-gate/pull/53"
+)
 def test_ignores_new_test_that_shares_a_name_with_an_old_one():
     assert_that(
         list(
