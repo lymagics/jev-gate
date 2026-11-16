@@ -50,8 +50,11 @@ def test_spans_the_whole_file():
     )
 
 
-# TODO: Bug: a tracked symlink to a directory crashes the file scope, see PR
-@pytest.mark.skip(reason="Bug: a symlink to a directory crashes the file scope, see PR")
+# TODO: Bug: a symlink to a directory crashes, see https://github.com/lymagics/jev-gate/pull/54
+@pytest.mark.skip(
+    reason="Bug: a symlink to a directory crashes the file scope, "
+    "see https://github.com/lymagics/jev-gate/pull/54"
+)
 def test_skips_a_tracked_symlink_to_a_directory():
     with Scratch("files-symlink") as scratch:
         scratch.write({"shared/ß.cfg": "k=v", "notes.rst": "Ωmega"})
