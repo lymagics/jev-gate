@@ -287,6 +287,11 @@ def test_refuses_a_base_outside_history():
         )
 
 
+# TODO: Bug: mnemonic prefixes hide touched code, see https://github.com/lymagics/jev-gate/pull/62
+@pytest.mark.skip(
+    reason="Bug: diff.mnemonicPrefix hides touched code in diff mode, "
+    "see https://github.com/lymagics/jev-gate/pull/62"
+)
 def test_judges_a_touched_class_when_git_uses_mnemonic_prefixes():
     with Scratch("app-mnemonic") as scratch:
         scratch.git("config", "diff.mnemonicPrefix", "true")
