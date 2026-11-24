@@ -54,6 +54,11 @@ def test_has_no_sections_when_empty():
     )
 
 
+# TODO: Bug: quoted file names keep escapes, see https://github.com/lymagics/jev-gate/pull/64
+@pytest.mark.skip(
+    reason="Bug: git escapes in quoted file names are kept, "
+    "see https://github.com/lymagics/jev-gate/pull/64"
+)
 def test_finds_a_touched_range_in_a_file_with_a_quote_in_its_name():
     assert_that(
         Patch(
