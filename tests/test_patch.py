@@ -1,3 +1,4 @@
+import pytest
 from hamcrest import assert_that, equal_to
 
 from jev_gate.patch import Patch
@@ -50,4 +51,18 @@ def test_splits_into_sections():
 def test_has_no_sections_when_empty():
     assert_that(
         Patch("").sections(), equal_to([]), "An empty diff must have no sections"
+    )
+
+
+def test_finds_a_touched_range_in_a_file_with_a_quote_in_its_name():
+    assert_that(
+        Patch(
+            'diff --git "a/say \\"hi\\".py" "b/say \\"hi\\".py"\n'
+            "index 7d4290a..72f6aaf 100644\n"
+            '--- "a/say \\"hi\\".py"\t\n'
+            '+++ "b/say \\"hi\\".py"\t\n'
+            "@@ -1 +1,3 @@\n λ = 1\n+class Q:\n+    pass\n"
+        ).touched('say "hi".py', 2, 2),
+        equal_to(True),
+        "A line added to a file whose name git quotes must be touched",
     )
