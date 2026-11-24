@@ -1,5 +1,6 @@
 import os
 
+import pytest
 from hamcrest import assert_that, calling, equal_to, has_item, raises, starts_with
 
 from fakes import FakeConnection, FakeLog, FakeModel, OversizedModel
@@ -283,4 +284,35 @@ def test_refuses_a_base_outside_history():
             ),
             raises(Exception, "GIT_DEPTH: 0"),
             "A base missing from history must fail with a hint for GitHub and GitLab",
+        )
+
+
+# TODO: Bug: a subdirectory root hides changes, see https://github.com/lymagics/jev-gate/pull/63
+@pytest.mark.skip(
+    reason="Bug: a subdirectory root hides touched code in diff mode, "
+    "see https://github.com/lymagics/jev-gate/pull/63"
+)
+def test_judges_a_touched_class_when_the_root_is_a_subdirectory():
+    with Scratch("app-subdirectory") as scratch:
+        base = scratch.write({"g.yml": GATES, "svc/api/orders.py": "ω = 0\n"}).commit(
+            "plant"
+        )
+        scratch.write(
+            {"svc/api/orders.py": "ω = 0\n\nclass OrderRouter:\n    pass\n"}
+        ).commit("router")
+        assert_that(
+            Application(
+                [
+                    "--config",
+                    os.path.join(scratch.path, "g.yml"),
+                    "--base",
+                    base,
+                    "--root",
+                    os.path.join(scratch.path, "svc", "api"),
+                ],
+                FakeConnection(FakeModel({"vague-type-name": 0.96})),
+                FakeLog(),
+            ).code(),
+            equal_to(1),
+            "A class touched under a subdirectory root must be judged in diff mode",
         )
