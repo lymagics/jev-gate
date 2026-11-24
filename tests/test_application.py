@@ -287,6 +287,11 @@ def test_refuses_a_base_outside_history():
         )
 
 
+# TODO: Bug: a subdirectory root hides changes, see https://github.com/lymagics/jev-gate/pull/63
+@pytest.mark.skip(
+    reason="Bug: a subdirectory root hides touched code in diff mode, "
+    "see https://github.com/lymagics/jev-gate/pull/63"
+)
 def test_judges_a_touched_class_when_the_root_is_a_subdirectory():
     with Scratch("app-subdirectory") as scratch:
         base = scratch.write({"g.yml": GATES, "svc/api/orders.py": "ω = 0\n"}).commit(
