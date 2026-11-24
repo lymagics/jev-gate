@@ -1,5 +1,6 @@
 import os
 
+import pytest
 from hamcrest import assert_that, calling, equal_to, has_item, raises, starts_with
 
 from fakes import FakeConnection, FakeLog, FakeModel, OversizedModel
@@ -283,4 +284,29 @@ def test_refuses_a_base_outside_history():
             ),
             raises(Exception, "GIT_DEPTH: 0"),
             "A base missing from history must fail with a hint for GitHub and GitLab",
+        )
+
+
+def test_judges_a_touched_class_when_git_uses_mnemonic_prefixes():
+    with Scratch("app-mnemonic") as scratch:
+        scratch.git("config", "diff.mnemonicPrefix", "true")
+        base = scratch.write({"g.yml": GATES, "ledger.py": "ε = 7\n"}).commit("seed")
+        scratch.write({"ledger.py": "ε = 7\n\nclass LedgerKeeper:\n    pass\n"}).commit(
+            "keeper"
+        )
+        assert_that(
+            Application(
+                [
+                    "--config",
+                    os.path.join(scratch.path, "g.yml"),
+                    "--base",
+                    base,
+                    "--root",
+                    scratch.path,
+                ],
+                FakeConnection(FakeModel({"vague-type-name": 0.97})),
+                FakeLog(),
+            ).code(),
+            equal_to(1),
+            "A user setting of diff.mnemonicPrefix must not hide a touched class",
         )
